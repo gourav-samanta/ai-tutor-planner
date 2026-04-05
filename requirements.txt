@@ -1,0 +1,6 @@
+streamlit
+firebase-admin
+openai
+requests
+plotly
+python-dotenv
