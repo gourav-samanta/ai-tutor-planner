@@ -4,7 +4,7 @@ import google.generativeai as genai
 
 def get_client():
     genai.configure(api_key=st.secrets["gemini"]["api_key"])
-    return genai.GenerativeModel('gemini-1.5-flash')
+    return genai.GenerativeModel('models/gemini-1.5-flash-latest')
 
 def call_ai(prompt: str) -> str:
     model = get_client()
