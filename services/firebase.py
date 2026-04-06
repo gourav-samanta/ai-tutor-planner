@@ -15,7 +15,10 @@ def init_firebase():
             "token_uri": st.secrets["firebase"]["token_uri"],
         }
         cred = credentials.Certificate(cred_dict)
-        firebase_admin.initialize_app(cred)
+        # Initialize with project ID to ensure correct database connection
+        firebase_admin.initialize_app(cred, {
+            'projectId': st.secrets["firebase"]["project_id"],
+        })
 
 def get_db():
     init_firebase()
