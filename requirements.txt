@@ -1,6 +1,6 @@
 streamlit
 firebase-admin
-openai
+google-generativeai
 requests
 plotly
 python-dotenv

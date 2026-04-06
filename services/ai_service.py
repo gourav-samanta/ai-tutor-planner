@@ -1,18 +1,15 @@
 import json
 import streamlit as st
-from openai import OpenAI
+import google.generativeai as genai
 
 def get_client():
-    return OpenAI(api_key=st.secrets["openai"]["api_key"])
+    genai.configure(api_key=st.secrets["gemini"]["api_key"])
+    return genai.GenerativeModel('gemini-pro')
 
 def call_ai(prompt: str) -> str:
-    client = get_client()
-    resp = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7
-    )
-    return resp.choices[0].message.content
+    model = get_client()
+    response = model.generate_content(prompt)
+    return response.text
 
 def generate_roadmap(topic, purpose, duration, daily_hours, level) -> list:
     prompt = f"""You are an expert learning planner. Generate a structured learning roadmap in JSON format.
@@ -33,7 +30,15 @@ Return ONLY a JSON array (no markdown, no explanation):
   }}
 ]"""
     raw = call_ai(prompt)
-    return json.loads(raw)
+    # Clean markdown code blocks if present
+    raw = raw.strip()
+    if raw.startswith("```json"):
+        raw = raw[7:]
+    if raw.startswith("```"):
+        raw = raw[3:]
+    if raw.endswith("```"):
+        raw = raw[:-3]
+    return json.loads(raw.strip())
 
 def generate_daily_tasks(topic, level, daily_hours, date) -> list:
     prompt = f"""You are a learning task generator. Generate daily tasks in JSON format.
@@ -55,7 +60,15 @@ Return ONLY a JSON array (no markdown):
 ]
 Generate 4-6 tasks. difficulty: easy|medium|hard. type: reading|video|practice|revision."""
     raw = call_ai(prompt)
-    tasks = json.loads(raw)
+    # Clean markdown code blocks if present
+    raw = raw.strip()
+    if raw.startswith("```json"):
+        raw = raw[7:]
+    if raw.startswith("```"):
+        raw = raw[3:]
+    if raw.endswith("```"):
+        raw = raw[:-3]
+    tasks = json.loads(raw.strip())
     return [{"completed": False, "carriedOver": False, **t} for t in tasks]
 
 def generate_test(topic, level, test_type) -> list:
@@ -72,7 +85,15 @@ Return ONLY a JSON array (no markdown):
 ]
 Generate {count} questions. For short answer, options = []. type: mcq|short."""
     raw = call_ai(prompt)
-    return json.loads(raw)
+    # Clean markdown code blocks if present
+    raw = raw.strip()
+    if raw.startswith("```json"):
+        raw = raw[7:]
+    if raw.startswith("```"):
+        raw = raw[3:]
+    if raw.endswith("```"):
+        raw = raw[:-3]
+    return json.loads(raw.strip())
 
 def generate_ai_summary(records: list) -> str:
     if not records:
