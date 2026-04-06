@@ -22,7 +22,8 @@ def init_firebase():
 
 def get_db():
     init_firebase()
-    return firestore.client()
+    # Use the specific database name
+    return firestore.client(database_id='aitutordb')
 
 def get_auth():
     init_firebase()
