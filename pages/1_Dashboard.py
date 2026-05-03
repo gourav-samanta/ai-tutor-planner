@@ -5,6 +5,14 @@ from services.session import require_auth, sidebar_nav
 from services.firebase import get_db
 
 st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
+
+# Hide default Streamlit navigation
+st.markdown("""
+<style>
+    [data-testid="stSidebarNav"] {display: none;}
+</style>
+""", unsafe_allow_html=True)
+
 sidebar_nav()
 user = require_auth()
 db = get_db()

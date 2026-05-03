@@ -7,6 +7,14 @@ from services.firebase import get_db
 from services.ai_service import generate_ai_summary
 
 st.set_page_config(page_title="Progress", page_icon="📈", layout="wide")
+
+# Hide default Streamlit navigation
+st.markdown("""
+<style>
+    [data-testid="stSidebarNav"] {display: none;}
+</style>
+""", unsafe_allow_html=True)
+
 sidebar_nav()
 user = require_auth()
 db = get_db()

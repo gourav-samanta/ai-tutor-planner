@@ -1,7 +1,14 @@
 import streamlit as st
 from services.auth_service import login, signup
 
-st.set_page_config(page_title="AI Tutor Planner", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="AI Tutor Planner", page_icon="🎓", layout="wide", initial_sidebar_state="collapsed")
+
+# Hide default Streamlit navigation
+st.markdown("""
+<style>
+    [data-testid="stSidebarNav"] {display: none;}
+</style>
+""", unsafe_allow_html=True)
 
 def auth_page():
     st.title("🎓 AI Tutor Planner")
