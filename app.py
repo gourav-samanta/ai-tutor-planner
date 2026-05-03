@@ -48,21 +48,5 @@ if "user" not in st.session_state or not st.session_state.user:
     auth_page()
     st.stop()
 
-# Sidebar
-with st.sidebar:
-    st.markdown(f"### 🎓 AI Tutor Planner")
-    st.markdown(f"👤 **{st.session_state.user['name']}**")
-    st.divider()
-    st.page_link("pages/1_Dashboard.py", label="📊 Dashboard")
-    st.page_link("pages/2_Input.py", label="➕ New Plan")
-    st.page_link("pages/3_Roadmap.py", label="🗺️ Roadmap")
-    st.page_link("pages/4_Tasks.py", label="✅ Tasks")
-    st.page_link("pages/5_Tests.py", label="📝 Tests")
-    st.page_link("pages/6_Progress.py", label="📈 Progress")
-    st.divider()
-    if st.button("🚪 Logout", use_container_width=True):
-        st.session_state.clear()
-        st.rerun()
-
-st.title("🏠 Welcome to AI Tutor Planner")
-st.info("Use the sidebar to navigate. Start by creating a **New Plan**.")
+# Redirect to New Plan page (chatbot)
+st.switch_page("pages/2_Input.py")
