@@ -81,14 +81,7 @@ if not tasks:
             st.warning("⚠️ No learning plan found. Please create a plan first using the AI Planner.")
             st.stop()
 
-# Manual refresh button
-col1, col2 = st.columns([3, 1])
-with col2:
-    if st.button("🔄 Refresh Tasks", use_container_width=True):
-        with st.spinner("Regenerating tasks..."):
-            if auto_generate_tasks():
-                st.success("✅ Tasks refreshed!")
-                st.rerun()
+# Display task completion progress
 
 done = sum(1 for t in tasks if t.get("completed"))
 total = len(tasks)
