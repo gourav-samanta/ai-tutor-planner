@@ -58,7 +58,7 @@ Return ONLY a JSON array (no markdown):
     "type": "reading"
   }}
 ]
-Generate 4-6 tasks. difficulty: easy|medium|hard. type: reading|video|practice|revision."""
+Generate 8-12 tasks based on daily hours. difficulty: easy|medium|hard. type: reading|video|practice|revision."""
     raw = call_ai(prompt)
     # Clean markdown code blocks if present
     raw = raw.strip()

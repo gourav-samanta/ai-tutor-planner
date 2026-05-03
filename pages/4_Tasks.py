@@ -41,40 +41,54 @@ def save_tasks(ref, tasks):
     else:
         db.collection("progress").add({"userId": uid, "date": today, "task_completion": completion, "daily_score": completion})
 
+def auto_generate_tasks():
+    """Auto-generate tasks if not already generated today"""
+    plan_docs = list(db.collection("plans").where("userId", "==", uid).limit(1).stream())
+    if not plan_docs:
+        return False
+    
+    plan = plan_docs[0].to_dict()
+    
+    try:
+        # Carry over incomplete tasks from yesterday
+        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        y_docs = list(db.collection("tasks").where("userId", "==", uid).where("date", "==", yesterday).limit(1).stream())
+        carry = []
+        if y_docs:
+            carry = [dict(t, carriedOver=True) for t in y_docs[0].to_dict().get("tasks", []) if not t.get("completed")]
+
+        new_tasks = generate_daily_tasks(plan["topic"], plan["level"], plan["daily_time_hours"], today)
+        all_tasks = carry + new_tasks
+
+        existing = list(db.collection("tasks").where("userId", "==", uid).where("date", "==", today).limit(1).stream())
+        if existing:
+            existing[0].reference.set({"userId": uid, "date": today, "tasks": all_tasks}, merge=True)
+        else:
+            db.collection("tasks").add({"userId": uid, "date": today, "tasks": all_tasks})
+        return True
+    except Exception as e:
+        st.error(f"Error generating tasks: {e}")
+        return False
+
+# Auto-generate tasks if they don't exist for today
+ref, tasks = load_tasks()
+if not tasks:
+    with st.spinner("🔄 Generating today's tasks..."):
+        if auto_generate_tasks():
+            st.success("✅ Tasks generated successfully!")
+            st.rerun()
+        else:
+            st.warning("⚠️ No learning plan found. Please create a plan first using the AI Planner.")
+            st.stop()
+
+# Manual refresh button
 col1, col2 = st.columns([3, 1])
 with col2:
-    if st.button("✨ Generate Tasks", use_container_width=True):
-        plan_docs = list(db.collection("plans").where("userId", "==", uid).limit(1).stream())
-        if not plan_docs:
-            st.error("No plan found. Create a plan first.")
-        else:
-            plan = plan_docs[0].to_dict()
-            with st.spinner("Generating tasks..."):
-                try:
-                    # Carry over incomplete tasks from yesterday
-                    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-                    y_docs = list(db.collection("tasks").where("userId", "==", uid).where("date", "==", yesterday).limit(1).stream())
-                    carry = []
-                    if y_docs:
-                        carry = [dict(t, carriedOver=True) for t in y_docs[0].to_dict().get("tasks", []) if not t.get("completed")]
-
-                    new_tasks = generate_daily_tasks(plan["topic"], plan["level"], plan["daily_time_hours"], today)
-                    all_tasks = carry + new_tasks
-
-                    existing = list(db.collection("tasks").where("userId", "==", uid).where("date", "==", today).limit(1).stream())
-                    if existing:
-                        existing[0].reference.set({"userId": uid, "date": today, "tasks": all_tasks}, merge=True)
-                    else:
-                        db.collection("tasks").add({"userId": uid, "date": today, "tasks": all_tasks})
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
-
-ref, tasks = load_tasks()
-
-if not tasks:
-    st.info("No tasks for today. Click 'Generate Tasks' to get started.")
-    st.stop()
+    if st.button("🔄 Refresh Tasks", use_container_width=True):
+        with st.spinner("Regenerating tasks..."):
+            if auto_generate_tasks():
+                st.success("✅ Tasks refreshed!")
+                st.rerun()
 
 done = sum(1 for t in tasks if t.get("completed"))
 total = len(tasks)
