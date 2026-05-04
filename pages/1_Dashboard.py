@@ -99,6 +99,57 @@ with col_right:
         st.info("No performance data yet.")
 
 st.divider()
+
+# Activity Calendar (GitHub-style)
+st.subheader("📅 Activity Calendar")
+
+# Fetch last 90 days of activity
+days_back = 90
+start_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+activity_docs = db.collection("progress")\
+    .where("userId", "==", uid)\
+    .where("planId", "==", active_plan_id)\
+    .where("date", ">=", start_date)\
+    .stream()
+
+activity_data = {d.to_dict()["date"]: d.to_dict().get("daily_score", 0) for d in activity_docs}
+
+# Create calendar grid
+def get_color(score):
+    if score == 0:
+        return "#1f2937"  # Dark gray (no activity)
+    elif score < 40:
+        return "#ef4444"  # Red (poor)
+    elif score < 70:
+        return "#f59e0b"  # Orange (average)
+    else:
+        return "#10b981"  # Green (good)
+
+# Generate calendar HTML
+calendar_html = '<div style="display: flex; flex-wrap: wrap; gap: 3px; max-width: 100%;">'
+for i in range(days_back, -1, -1):
+    date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+    score = activity_data.get(date, 0)
+    color = get_color(score)
+    tooltip = f"{date}: {score}%" if score > 0 else f"{date}: No activity"
+    calendar_html += f'<div title="{tooltip}" style="width: 12px; height: 12px; background-color: {color}; border-radius: 2px;"></div>'
+calendar_html += '</div>'
+
+# Legend
+calendar_html += '''
+<div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; font-size: 12px;">
+    <span>Less</span>
+    <div style="width: 12px; height: 12px; background-color: #1f2937; border-radius: 2px;"></div>
+    <div style="width: 12px; height: 12px; background-color: #ef4444; border-radius: 2px;"></div>
+    <div style="width: 12px; height: 12px; background-color: #f59e0b; border-radius: 2px;"></div>
+    <div style="width: 12px; height: 12px; background-color: #10b981; border-radius: 2px;"></div>
+    <span>More</span>
+</div>
+'''
+
+st.markdown(calendar_html, unsafe_allow_html=True)
+
+st.divider()
 st.subheader("Quick Actions")
 q1, q2, q3, q4 = st.columns(4)
 if q1.button("🎯 New Plan", use_container_width=True):
