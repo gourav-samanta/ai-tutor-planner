@@ -26,6 +26,20 @@ if not active_plan_id:
     st.warning("⚠️ No subject selected. Please select a subject from the Library or create a new plan.")
     st.stop()
 
+# Get active plan info
+plan_doc = db.collection("plans").document(active_plan_id).get()
+if plan_doc.exists:
+    active_plan = plan_doc.to_dict()
+    st.caption(f"📖 Active Subject: **{active_plan.get('topic', 'Unknown')}**")
+
+# Clear active test if it belongs to a different plan
+if "active_test" in st.session_state:
+    active_test = st.session_state["active_test"]
+    if active_test.get("planId") != active_plan_id:
+        del st.session_state["active_test"]
+        if "last_score" in st.session_state:
+            del st.session_state["last_score"]
+
 st.title("📝 Tests")
 
 # Calculate week number since plan started

@@ -13,7 +13,16 @@ def get_active_plan_id():
     return st.session_state.get("active_plan_id", None)
 
 def set_active_plan(plan_id):
-    """Set the active plan"""
+    """Set the active plan and clear session data"""
+    # Clear all session data related to the previous plan
+    keys_to_clear = [
+        "active_test", "last_score", "chat_history", 
+        "plan_info", "conversation_stage", "plan"
+    ]
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]
+    
     st.session_state["active_plan_id"] = plan_id
 
 def sidebar_nav():
@@ -56,7 +65,10 @@ def sidebar_nav():
                         label = f"{icon} {topic}"
                     
                     if st.button(label, key=f"plan_{plan_id}", use_container_width=True):
-                        set_active_plan(plan_id)
+                        with st.spinner(f"Switching to {topic}..."):
+                            set_active_plan(plan_id)
+                            import time
+                            time.sleep(0.5)  # Brief pause to ensure state is cleared
                         st.rerun()
             else:
                 st.info("No subjects yet. Create your first plan!")
