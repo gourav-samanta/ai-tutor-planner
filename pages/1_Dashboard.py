@@ -131,85 +131,54 @@ month_docs = db.collection("progress")\
 
 month_data = {d.to_dict()["date"]: d.to_dict().get("daily_score", 0) for d in month_docs}
 
-# Create calendar grid
-def get_color(score):
-    if score == 0:
-        return "#1f2937"  # Dark gray (no activity)
-    elif score < 40:
-        return "#ef4444"  # Red (poor)
-    elif score < 70:
-        return "#f59e0b"  # Orange (average)
-    else:
-        return "#10b981"  # Green (good)
-
 # Get first day of month and number of days
-first_weekday = calendar.monthrange(year, month_num)[0]  # 0=Monday, 6=Sunday
+first_weekday = calendar.monthrange(year, month_num)[0]
 days_in_month = calendar.monthrange(year, month_num)[1]
 
-# Create calendar HTML
-calendar_html = '<div style="margin-bottom: 10px;"><strong>' + month + ' ' + str(year) + '</strong></div>'
-calendar_html += '<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; max-width: 500px;">'
+# Display calendar using columns
+st.caption(f"**{month} {year}**")
 
 # Day headers
-for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']:
-    calendar_html += f'<div style="text-align: center; font-size: 12px; color: #9ca3af; padding: 5px;">{day}</div>'
+cols = st.columns(7)
+for i, day in enumerate(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']):
+    cols[i].markdown(f"<div style='text-align: center; font-size: 12px;'>{day}</div>", unsafe_allow_html=True)
 
-# Empty cells for days before month starts
-for _ in range(first_weekday):
-    calendar_html += '<div style="padding: 20px;"></div>'
+# Calendar days
+day_counter = 1
+week_num = 0
 
-# Days of the month
-for day in range(1, days_in_month + 1):
-    date = datetime(year, month_num, day).strftime("%Y-%m-%d")
-    score = month_data.get(date, 0)
-    color = get_color(score)
-    
-    # Check if it's today
-    is_today = date == datetime.now().strftime("%Y-%m-%d")
-    border = "2px solid #6366f1" if is_today else "1px solid #374151"
-    
-    tooltip = f"{date}: {score}%" if score > 0 else f"{date}: No activity"
-    calendar_html += f'''
-    <div title="{tooltip}" style="
-        background-color: {color}; 
-        border: {border};
-        border-radius: 4px; 
-        padding: 20px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        color: white;
-        font-weight: bold;
-    ">{day}</div>
-    '''
-
-calendar_html += '</div>'
+while day_counter <= days_in_month:
+    cols = st.columns(7)
+    for i in range(7):
+        if week_num == 0 and i < first_weekday:
+            # Empty cell before month starts
+            cols[i].write("")
+        elif day_counter <= days_in_month:
+            date = datetime(year, month_num, day_counter).strftime("%Y-%m-%d")
+            score = month_data.get(date, 0)
+            
+            # Determine color
+            if score == 0:
+                color = "⬛"
+            elif score < 40:
+                color = "🟥"
+            elif score < 70:
+                color = "🟧"
+            else:
+                color = "🟩"
+            
+            # Check if today
+            is_today = date == datetime.now().strftime("%Y-%m-%d")
+            border = "🔵" if is_today else ""
+            
+            cols[i].markdown(f"<div style='text-align: center;'>{color}{border}<br><small>{day_counter}</small><br><small>{score}%</small></div>", unsafe_allow_html=True)
+            day_counter += 1
+        else:
+            cols[i].write("")
+    week_num += 1
 
 # Legend
-calendar_html += '''
-<div style="margin-top: 15px; display: flex; align-items: center; gap: 10px; font-size: 12px;">
-    <span>Performance:</span>
-    <div style="display: flex; align-items: center; gap: 5px;">
-        <div style="width: 15px; height: 15px; background-color: #1f2937; border-radius: 2px;"></div>
-        <span>None</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 5px;">
-        <div style="width: 15px; height: 15px; background-color: #ef4444; border-radius: 2px;"></div>
-        <span>Poor</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 5px;">
-        <div style="width: 15px; height: 15px; background-color: #f59e0b; border-radius: 2px;"></div>
-        <span>Average</span>
-    </div>
-    <div style="display: flex; align-items: center; gap: 5px;">
-        <div style="width: 15px; height: 15px; background-color: #10b981; border-radius: 2px;"></div>
-        <span>Good</span>
-    </div>
-</div>
-'''
-
-st.markdown(calendar_html, unsafe_allow_html=True)
+st.caption("🟩 Good (70-100%) | 🟧 Average (40-69%) | 🟥 Poor (1-39%) | ⬛ No Activity | 🔵 Today")
 
 st.divider()
 st.subheader("Quick Actions")
