@@ -100,19 +100,36 @@ with col_right:
 
 st.divider()
 
-# Activity Calendar (GitHub-style)
-st.subheader("📅 Activity Calendar")
+# Monthly Activity Calendar
+st.subheader("📅 Monthly Activity Calendar")
 
-# Fetch last 90 days of activity
-days_back = 90
-start_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-activity_docs = db.collection("progress")\
+# Month selector
+col_month, col_year = st.columns([2, 1])
+with col_month:
+    month = st.selectbox("Month", 
+        ["January", "February", "March", "April", "May", "June", 
+         "July", "August", "September", "October", "November", "December"],
+        index=datetime.now().month - 1)
+with col_year:
+    year = st.number_input("Year", min_value=2020, max_value=2030, value=datetime.now().year)
+
+month_num = ["January", "February", "March", "April", "May", "June", 
+             "July", "August", "September", "October", "November", "December"].index(month) + 1
+
+# Fetch month's activity
+import calendar
+first_day = datetime(year, month_num, 1).strftime("%Y-%m-%d")
+last_day_num = calendar.monthrange(year, month_num)[1]
+last_day = datetime(year, month_num, last_day_num).strftime("%Y-%m-%d")
+
+month_docs = db.collection("progress")\
     .where("userId", "==", uid)\
     .where("planId", "==", active_plan_id)\
-    .where("date", ">=", start_date)\
+    .where("date", ">=", first_day)\
+    .where("date", "<=", last_day)\
     .stream()
 
-activity_data = {d.to_dict()["date"]: d.to_dict().get("daily_score", 0) for d in activity_docs}
+month_data = {d.to_dict()["date"]: d.to_dict().get("daily_score", 0) for d in month_docs}
 
 # Create calendar grid
 def get_color(score):
@@ -125,25 +142,70 @@ def get_color(score):
     else:
         return "#10b981"  # Green (good)
 
-# Generate calendar HTML
-calendar_html = '<div style="display: flex; flex-wrap: wrap; gap: 3px; max-width: 100%;">'
-for i in range(days_back, -1, -1):
-    date = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-    score = activity_data.get(date, 0)
+# Get first day of month and number of days
+first_weekday = calendar.monthrange(year, month_num)[0]  # 0=Monday, 6=Sunday
+days_in_month = calendar.monthrange(year, month_num)[1]
+
+# Create calendar HTML
+calendar_html = '<div style="margin-bottom: 10px;"><strong>' + month + ' ' + str(year) + '</strong></div>'
+calendar_html += '<div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; max-width: 500px;">'
+
+# Day headers
+for day in ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']:
+    calendar_html += f'<div style="text-align: center; font-size: 12px; color: #9ca3af; padding: 5px;">{day}</div>'
+
+# Empty cells for days before month starts
+for _ in range(first_weekday):
+    calendar_html += '<div style="padding: 20px;"></div>'
+
+# Days of the month
+for day in range(1, days_in_month + 1):
+    date = datetime(year, month_num, day).strftime("%Y-%m-%d")
+    score = month_data.get(date, 0)
     color = get_color(score)
+    
+    # Check if it's today
+    is_today = date == datetime.now().strftime("%Y-%m-%d")
+    border = "2px solid #6366f1" if is_today else "1px solid #374151"
+    
     tooltip = f"{date}: {score}%" if score > 0 else f"{date}: No activity"
-    calendar_html += f'<div title="{tooltip}" style="width: 12px; height: 12px; background-color: {color}; border-radius: 2px;"></div>'
+    calendar_html += f'''
+    <div title="{tooltip}" style="
+        background-color: {color}; 
+        border: {border};
+        border-radius: 4px; 
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: white;
+        font-weight: bold;
+    ">{day}</div>
+    '''
+
 calendar_html += '</div>'
 
 # Legend
 calendar_html += '''
-<div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; font-size: 12px;">
-    <span>Less</span>
-    <div style="width: 12px; height: 12px; background-color: #1f2937; border-radius: 2px;"></div>
-    <div style="width: 12px; height: 12px; background-color: #ef4444; border-radius: 2px;"></div>
-    <div style="width: 12px; height: 12px; background-color: #f59e0b; border-radius: 2px;"></div>
-    <div style="width: 12px; height: 12px; background-color: #10b981; border-radius: 2px;"></div>
-    <span>More</span>
+<div style="margin-top: 15px; display: flex; align-items: center; gap: 10px; font-size: 12px;">
+    <span>Performance:</span>
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <div style="width: 15px; height: 15px; background-color: #1f2937; border-radius: 2px;"></div>
+        <span>None</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <div style="width: 15px; height: 15px; background-color: #ef4444; border-radius: 2px;"></div>
+        <span>Poor</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <div style="width: 15px; height: 15px; background-color: #f59e0b; border-radius: 2px;"></div>
+        <span>Average</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <div style="width: 15px; height: 15px; background-color: #10b981; border-radius: 2px;"></div>
+        <span>Good</span>
+    </div>
 </div>
 '''
 
