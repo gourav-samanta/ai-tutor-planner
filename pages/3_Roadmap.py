@@ -17,17 +17,22 @@ user = require_auth()
 db = get_db()
 uid = user["uid"]
 
-st.title("🗺️ Learning Roadmap")
-
-# Load plan
-docs = list(db.collection("plans").where("userId", "==", uid).limit(1).stream())
-if not docs:
-    st.warning("No roadmap found.")
-    if st.button("Create a Plan"):
-        st.switch_page("pages/2_Input.py")
+# Check if a plan is selected
+from services.session import get_active_plan_id
+active_plan_id = get_active_plan_id()
+if not active_plan_id:
+    st.warning("⚠️ No subject selected. Please select a subject from the Library or create a new plan.")
     st.stop()
 
-plan = docs[0].to_dict()
+st.title("🗺️ Learning Roadmap")
+
+# Load active plan
+plan_doc = db.collection("plans").document(active_plan_id).get()
+if not plan_doc.exists:
+    st.error("Plan not found.")
+    st.stop()
+
+plan = plan_doc.to_dict()
 
 st.markdown(f"**Topic:** {plan['topic']} &nbsp;|&nbsp; **Level:** {plan['level']} &nbsp;|&nbsp; **Duration:** {plan['duration']} &nbsp;|&nbsp; **Daily:** {plan['daily_time_hours']}h")
 st.divider()

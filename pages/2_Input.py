@@ -94,12 +94,13 @@ if user_input:
                         "roadmap": roadmap
                     }
                     
-                    # Save to database
-                    existing = list(db.collection("plans").where("userId", "==", uid).limit(1).stream())
-                    if existing:
-                        existing[0].reference.set(plan_data, merge=True)
-                    else:
-                        db.collection("plans").add(plan_data)
+                    # Save to database as NEW plan (don't overwrite)
+                    plan_ref = db.collection("plans").add(plan_data)
+                    plan_id = plan_ref[1].id
+                    
+                    # Set as active plan
+                    from services.session import set_active_plan
+                    set_active_plan(plan_id)
 
                     reply = f"✅ **Your learning plan is ready!**\n\nI've created a personalized roadmap for **{topic}** over **{duration}** at **{level}** level.\n\n🗺️ View your **Roadmap** to see the weekly breakdown\n✅ Check **Tasks** for daily activities\n📝 Take **Tests** to assess your progress\n📈 Track your **Progress** over time\n\nGood luck with your learning journey! 🚀"
                     st.session_state["plan"] = plan_data
@@ -161,11 +162,13 @@ if st.session_state.get("conversation_stage") == "form":
                         "level": level, "roadmap": roadmap
                     }
                     
-                    existing = list(db.collection("plans").where("userId", "==", uid).limit(1).stream())
-                    if existing:
-                        existing[0].reference.set(plan_data, merge=True)
-                    else:
-                        db.collection("plans").add(plan_data)
+                    # Save to database as NEW plan (don't overwrite)
+                    plan_ref = db.collection("plans").add(plan_data)
+                    plan_id = plan_ref[1].id
+                    
+                    # Set as active plan
+                    from services.session import set_active_plan
+                    set_active_plan(plan_id)
 
                     st.success("✅ Your learning plan is ready! Check the Roadmap page.")
                     st.session_state["plan"] = plan_data

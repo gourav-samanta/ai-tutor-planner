@@ -19,6 +19,13 @@ db = get_db()
 uid = user["uid"]
 today = datetime.now().strftime("%Y-%m-%d")
 
+# Check if a plan is selected
+from services.session import get_active_plan_id
+active_plan_id = get_active_plan_id()
+if not active_plan_id:
+    st.warning("⚠️ No subject selected. Please select a subject from the Library or create a new plan.")
+    st.stop()
+
 st.title("✅ Today's Tasks")
 st.caption(today)
 
@@ -26,7 +33,15 @@ DIFF_COLOR = {"easy": "🟢", "medium": "🟡", "hard": "🔴"}
 TYPE_ICON = {"reading": "📖", "video": "🎥", "practice": "💻", "revision": "🔄"}
 
 def load_tasks():
-    docs = list(db.collection("tasks").where("userId", "==", uid).where("date", "==", today).limit(1).stream())
+    from services.session import get_active_plan_id
+    active_plan_id = get_active_plan_id()
+    if not active_plan_id:
+        return (None, [])
+    docs = list(db.collection("tasks")
+        .where("userId", "==", uid)
+        .where("planId", "==", active_plan_id)
+        .where("date", "==", today)
+        .limit(1).stream())
     return (docs[0].reference, docs[0].to_dict().get("tasks", [])) if docs else (None, [])
 
 def save_tasks(ref, tasks):
@@ -43,16 +58,27 @@ def save_tasks(ref, tasks):
 
 def auto_generate_tasks():
     """Auto-generate tasks if not already generated today"""
-    plan_docs = list(db.collection("plans").where("userId", "==", uid).limit(1).stream())
-    if not plan_docs:
+    from services.session import get_active_plan_id
+    
+    active_plan_id = get_active_plan_id()
+    if not active_plan_id:
         return False
     
-    plan = plan_docs[0].to_dict()
+    # Get the active plan
+    plan_doc = db.collection("plans").document(active_plan_id).get()
+    if not plan_doc.exists:
+        return False
+    
+    plan = plan_doc.to_dict()
     
     try:
         # Carry over incomplete tasks from yesterday
         yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        y_docs = list(db.collection("tasks").where("userId", "==", uid).where("date", "==", yesterday).limit(1).stream())
+        y_docs = list(db.collection("tasks")
+            .where("userId", "==", uid)
+            .where("planId", "==", active_plan_id)
+            .where("date", "==", yesterday)
+            .limit(1).stream())
         carry = []
         if y_docs:
             carry = [dict(t, carriedOver=True) for t in y_docs[0].to_dict().get("tasks", []) if not t.get("completed")]
@@ -60,11 +86,15 @@ def auto_generate_tasks():
         new_tasks = generate_daily_tasks(plan["topic"], plan["level"], plan["daily_time_hours"], today)
         all_tasks = carry + new_tasks
 
-        existing = list(db.collection("tasks").where("userId", "==", uid).where("date", "==", today).limit(1).stream())
+        existing = list(db.collection("tasks")
+            .where("userId", "==", uid)
+            .where("planId", "==", active_plan_id)
+            .where("date", "==", today)
+            .limit(1).stream())
         if existing:
-            existing[0].reference.set({"userId": uid, "date": today, "tasks": all_tasks}, merge=True)
+            existing[0].reference.set({"userId": uid, "planId": active_plan_id, "date": today, "tasks": all_tasks}, merge=True)
         else:
-            db.collection("tasks").add({"userId": uid, "date": today, "tasks": all_tasks})
+            db.collection("tasks").add({"userId": uid, "planId": active_plan_id, "date": today, "tasks": all_tasks})
         return True
     except Exception as e:
         st.error(f"Error generating tasks: {e}")
