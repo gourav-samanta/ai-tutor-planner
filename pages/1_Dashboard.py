@@ -19,11 +19,22 @@ db = get_db()
 uid = user["uid"]
 today = datetime.now().strftime("%Y-%m-%d")
 
+# Check if a plan is selected
+from services.session import get_active_plan_id
+active_plan_id = get_active_plan_id()
+if not active_plan_id:
+    st.warning("⚠️ No subject selected. Please select a subject from the Library or create a new plan.")
+    st.stop()
+
 st.title("📊 Dashboard")
 st.caption(datetime.now().strftime("%A, %B %d %Y"))
 
-# Fetch today's tasks
-task_docs = db.collection("tasks").where("userId", "==", uid).where("date", "==", today).limit(1).stream()
+# Fetch today's tasks for active plan
+task_docs = db.collection("tasks")\
+    .where("userId", "==", uid)\
+    .where("planId", "==", active_plan_id)\
+    .where("date", "==", today)\
+    .limit(1).stream()
 tasks = []
 for doc in task_docs:
     tasks = doc.to_dict().get("tasks", [])
@@ -32,9 +43,13 @@ done = sum(1 for t in tasks if t.get("completed"))
 total = len(tasks)
 pct = round((done / total) * 100) if total > 0 else 0
 
-# Fetch weekly progress
+# Fetch weekly progress for active plan
 week_start = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
-prog_docs = db.collection("progress").where("userId", "==", uid).where("date", ">=", week_start).stream()
+prog_docs = db.collection("progress")\
+    .where("userId", "==", uid)\
+    .where("planId", "==", active_plan_id)\
+    .where("date", ">=", week_start)\
+    .stream()
 records = [d.to_dict() for d in prog_docs]
 records.sort(key=lambda x: x["date"])
 

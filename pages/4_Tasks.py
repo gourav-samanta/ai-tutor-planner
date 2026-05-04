@@ -50,11 +50,25 @@ def save_tasks(ref, tasks):
     total = len(tasks)
     done = sum(1 for t in tasks if t.get("completed"))
     completion = round((done / total) * 100) if total > 0 else 0
-    prog_docs = list(db.collection("progress").where("userId", "==", uid).where("date", "==", today).limit(1).stream())
+    
+    from services.session import get_active_plan_id
+    active_plan_id = get_active_plan_id()
+    
+    prog_docs = list(db.collection("progress")
+        .where("userId", "==", uid)
+        .where("planId", "==", active_plan_id)
+        .where("date", "==", today)
+        .limit(1).stream())
     if prog_docs:
         prog_docs[0].reference.update({"task_completion": completion, "daily_score": completion})
     else:
-        db.collection("progress").add({"userId": uid, "date": today, "task_completion": completion, "daily_score": completion})
+        db.collection("progress").add({
+            "userId": uid,
+            "planId": active_plan_id,
+            "date": today,
+            "task_completion": completion,
+            "daily_score": completion
+        })
 
 def auto_generate_tasks():
     """Auto-generate tasks if not already generated today"""

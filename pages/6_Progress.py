@@ -20,6 +20,13 @@ user = require_auth()
 db = get_db()
 uid = user["uid"]
 
+# Check if a plan is selected
+from services.session import get_active_plan_id
+active_plan_id = get_active_plan_id()
+if not active_plan_id:
+    st.warning("⚠️ No subject selected. Please select a subject from the Library or create a new plan.")
+    st.stop()
+
 st.title("📈 Performance Tracker")
 
 range_opt = st.radio("Range", ["Weekly", "Monthly"], horizontal=True)
@@ -32,7 +39,12 @@ else:
     start = (now - timedelta(days=6)).strftime("%Y-%m-%d")
 end = now.strftime("%Y-%m-%d")
 
-docs = list(db.collection("progress").where("userId", "==", uid).where("date", ">=", start).where("date", "<=", end).stream())
+docs = list(db.collection("progress")
+    .where("userId", "==", uid)
+    .where("planId", "==", active_plan_id)
+    .where("date", ">=", start)
+    .where("date", "<=", end)
+    .stream())
 records = sorted([d.to_dict() for d in docs], key=lambda x: x["date"])
 
 # Line chart

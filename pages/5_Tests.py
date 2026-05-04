@@ -19,22 +19,26 @@ db = get_db()
 uid = user["uid"]
 today = datetime.now().strftime("%Y-%m-%d")
 
+# Check if a plan is selected
+from services.session import get_active_plan_id
+active_plan_id = get_active_plan_id()
+if not active_plan_id:
+    st.warning("⚠️ No subject selected. Please select a subject from the Library or create a new plan.")
+    st.stop()
+
 st.title("📝 Tests")
 
 # Calculate week number since plan started
 def get_week_number():
-    plan_docs = list(db.collection("plans").where("userId", "==", uid).limit(1).stream())
-    if not plan_docs:
-        return 0
-    # For simplicity, use current week of year
     return datetime.now().isocalendar()[1]
 
 def check_weekly_test_due():
     """Check if weekly test is due (every 7 days)"""
     week_num = get_week_number()
-    # Check if weekly test exists for this week
+    # Check if weekly test exists for this week for active plan
     weekly_tests = list(db.collection("tests")
         .where("userId", "==", uid)
+        .where("planId", "==", active_plan_id)
         .where("type", "==", "weekly")
         .where("weekNumber", "==", week_num)
         .limit(1).stream())
@@ -42,9 +46,10 @@ def check_weekly_test_due():
 
 def get_or_create_daily_test():
     """Get or create today's daily test"""
-    # Check if daily test exists for today
+    # Check if daily test exists for today for active plan
     daily_tests = list(db.collection("tests")
         .where("userId", "==", uid)
+        .where("planId", "==", active_plan_id)
         .where("type", "==", "daily")
         .where("date", "==", today)
         .limit(1).stream())
@@ -54,15 +59,16 @@ def get_or_create_daily_test():
         return test_doc.reference.id, test_doc.to_dict()
     
     # Generate new daily test
-    plan_docs = list(db.collection("plans").where("userId", "==", uid).limit(1).stream())
-    if not plan_docs:
+    plan_doc = db.collection("plans").document(active_plan_id).get()
+    if not plan_doc.exists:
         return None, None
     
-    plan = plan_docs[0].to_dict()
+    plan = plan_doc.to_dict()
     try:
         questions = generate_test(plan["topic"], plan["level"], "daily")
         test_data = {
             "userId": uid,
+            "planId": active_plan_id,
             "type": "daily",
             "date": today,
             "weekNumber": get_week_number(),
@@ -80,15 +86,16 @@ def get_or_create_daily_test():
 
 def create_weekly_test():
     """Create mandatory weekly test"""
-    plan_docs = list(db.collection("plans").where("userId", "==", uid).limit(1).stream())
-    if not plan_docs:
+    plan_doc = db.collection("plans").document(active_plan_id).get()
+    if not plan_doc.exists:
         return None, None
     
-    plan = plan_docs[0].to_dict()
+    plan = plan_doc.to_dict()
     try:
         questions = generate_test(plan["topic"], plan["level"], "weekly")
         test_data = {
             "userId": uid,
+            "planId": active_plan_id,
             "type": "weekly",
             "date": today,
             "weekNumber": get_week_number(),
@@ -172,12 +179,17 @@ if "active_test" in st.session_state and not st.session_state["active_test"].get
 
         # Update progress
         field = "weekly_score" if test["type"] == "weekly" else "daily_test_score"
-        prog_docs = list(db.collection("progress").where("userId", "==", uid).where("date", "==", today).limit(1).stream())
+        prog_docs = list(db.collection("progress")
+            .where("userId", "==", uid)
+            .where("planId", "==", active_plan_id)
+            .where("date", "==", today)
+            .limit(1).stream())
         if prog_docs:
             prog_docs[0].reference.update({field: score})
         else:
             db.collection("progress").add({
                 "userId": uid,
+                "planId": active_plan_id,
                 "date": today,
                 field: score,
                 "daily_score": 0,
