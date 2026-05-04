@@ -95,7 +95,11 @@ def get_or_create_daily_test():
         ref = db.collection("tests").add(test_data)
         return ref[1].id, test_data
     except Exception as e:
-        st.error(f"Error generating test: {e}")
+        error_msg = str(e)
+        if "quota" in error_msg.lower() or "429" in error_msg:
+            st.error("⚠️ Daily API limit reached. Tests will be available again tomorrow. You can still complete tasks and track progress!")
+        else:
+            st.error(f"Error generating test: {e}")
         return None, None
 
 def create_weekly_test():
@@ -122,7 +126,11 @@ def create_weekly_test():
         ref = db.collection("tests").add(test_data)
         return ref[1].id, test_data
     except Exception as e:
-        st.error(f"Error generating weekly test: {e}")
+        error_msg = str(e)
+        if "quota" in error_msg.lower() or "429" in error_msg:
+            st.error("⚠️ Daily API limit reached. Weekly test generation will be available again tomorrow.")
+        else:
+            st.error(f"Error generating weekly test: {e}")
         return None, None
 
 # Check for mandatory weekly test
@@ -134,14 +142,33 @@ if weekly_due:
     
     # Check if there's an active weekly test
     if "active_test" not in st.session_state or st.session_state.get("active_test", {}).get("type") != "weekly":
-        with st.spinner("🔄 Generating weekly test..."):
-            test_id, test_data = create_weekly_test()
-            if test_id:
-                st.session_state["active_test"] = {"id": test_id, **test_data}
-                st.rerun()
+        # Check if weekly test already exists but not loaded
+        existing_weekly = list(db.collection("tests")
+            .where("userId", "==", uid)
+            .where("planId", "==", active_plan_id)
+            .where("type", "==", "weekly")
+            .where("weekNumber", "==", get_week_number())
+            .limit(1).stream())
+        
+        if existing_weekly:
+            # Load existing test
+            test_doc = existing_weekly[0]
+            st.session_state["active_test"] = {"id": test_doc.id, **test_doc.to_dict()}
+            st.rerun()
+        else:
+            # Generate new test
+            with st.spinner("🔄 Generating weekly test..."):
+                test_id, test_data = create_weekly_test()
+                if test_id:
+                    st.session_state["active_test"] = {"id": test_id, **test_data}
+                    st.rerun()
+                else:
+                    st.info("💡 **Tip:** The free Gemini API has a limit of 20 requests per day. Tests will be available again tomorrow!")
+                    st.stop()
 else:
     # DAILY TEST (OPTIONAL)
     st.info("📅 **Daily Test** - Optional practice test to reinforce your learning")
+    st.caption("💡 Free tier: Limited API calls per day. Tests reset daily.")
     
     col1, col2 = st.columns([1, 1])
     with col1:
@@ -150,6 +177,8 @@ else:
             if test_id:
                 st.session_state["active_test"] = {"id": test_id, **test_data}
                 st.rerun()
+            else:
+                st.stop()
     with col2:
         if st.button("⏭️ Skip for Today", use_container_width=True):
             st.success("Daily test skipped. Come back tomorrow!")
