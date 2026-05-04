@@ -171,7 +171,7 @@ while day_counter <= days_in_month:
             is_today = date == datetime.now().strftime("%Y-%m-%d")
             border = "🔵" if is_today else ""
             
-            cols[i].markdown(f"<div style='text-align: center;'>{color}{border}<br><small>{day_counter}</small><br><small>{score}%</small></div>", unsafe_allow_html=True)
+            cols[i].markdown(f"<div style='text-align: center;'>{color}{border}<br><small>{day_counter}</small></div>", unsafe_allow_html=True)
             day_counter += 1
         else:
             cols[i].write("")
