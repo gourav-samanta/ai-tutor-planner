@@ -65,9 +65,16 @@ else:
 # AI Summary
 if records:
     with st.expander("🤖 AI Performance Summary", expanded=True):
-        with st.spinner("Generating summary..."):
-            summary = generate_ai_summary(records)
-        st.write(summary)
+        try:
+            with st.spinner("Generating summary..."):
+                summary = generate_ai_summary(records)
+            st.write(summary)
+        except Exception as e:
+            error_msg = str(e)
+            if "ResourceExhausted" in error_msg or "quota" in error_msg.lower():
+                st.warning("⚠️ AI summary temporarily unavailable due to rate limits. Please try again in a few minutes.")
+            else:
+                st.error(f"Unable to generate AI summary: {error_msg}")
 
 st.divider()
 
