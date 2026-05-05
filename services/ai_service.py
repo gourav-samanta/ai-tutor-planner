@@ -2,7 +2,6 @@ import json
 import streamlit as st
 import google.generativeai as genai
 import time
-import random
 
 # Rate limiting
 _last_call_time = 0
@@ -13,18 +12,18 @@ _current_key_index = 0
 _failed_keys = set()  # Track keys that have hit quota
 _key_last_used = {}  # Track when each key was last used
 
+def _get_api_keys():
+    """Return configured Gemini API keys in normalized list form."""
+    if "api_keys" in st.secrets["gemini"]:
+        return st.secrets["gemini"]["api_keys"]
+    if "api_key" in st.secrets["gemini"]:
+        return [st.secrets["gemini"]["api_key"]]
+    raise ValueError("No API keys found in secrets. Please add 'api_keys' array or 'api_key' to [gemini] section.")
+
 def get_next_api_key():
     """Get next available API key using rotation strategy"""
     global _current_key_index
-    
-    # Support both old format (single key) and new format (array of keys)
-    if "api_keys" in st.secrets["gemini"]:
-        api_keys = st.secrets["gemini"]["api_keys"]
-    elif "api_key" in st.secrets["gemini"]:
-        # Fallback to single key format
-        api_keys = [st.secrets["gemini"]["api_key"]]
-    else:
-        raise ValueError("No API keys found in secrets. Please add 'api_keys' array or 'api_key' to [gemini] section.")
+    api_keys = _get_api_keys()
     
     # If all keys have failed, reset the failed set (they might work again after time)
     if len(_failed_keys) >= len(api_keys):
@@ -53,9 +52,12 @@ def get_client():
     genai.configure(api_key=api_key)
     return genai.GenerativeModel('gemini-2.5-flash'), api_key
 
-def call_ai(prompt: str, max_retries: int = 5) -> str:
+def call_ai(prompt: str, max_retries: int | None = None) -> str:
     global _last_call_time, _key_last_used
-    
+    api_keys = _get_api_keys()
+    if max_retries is None:
+        max_retries = len(api_keys)
+
     last_error = None
     
     for attempt in range(max_retries):
@@ -108,6 +110,37 @@ def call_ai(prompt: str, max_retries: int = 5) -> str:
     # If all retries failed, raise the last error
     raise last_error
 
+def call_ai_json(prompt: str, max_attempts: int | None = None):
+    """Call Gemini until we get valid JSON or all keys have been exhausted."""
+    if max_attempts is None:
+        max_attempts = len(_get_api_keys())
+
+    last_error = None
+
+    for attempt in range(max_attempts):
+        try:
+            raw = call_ai(prompt, max_retries=1)
+            cleaned = raw.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            return json.loads(cleaned.strip())
+        except Exception as e:
+            last_error = e
+
+            # If the model returned unusable output, rotate away from the current key
+            # and try again with the next one.
+            if attempt < max_attempts - 1:
+                time.sleep(2)
+                continue
+
+            raise e
+
+    raise last_error
+
 def generate_roadmap(topic, purpose, duration, daily_hours, level) -> list:
     prompt = f"""You are an expert learning planner. Generate a structured learning roadmap in JSON format.
 Topic: {topic}
@@ -126,16 +159,7 @@ Return ONLY a JSON array (no markdown, no explanation):
     "expectedOutcome": "What learner will achieve"
   }}
 ]"""
-    raw = call_ai(prompt)
-    # Clean markdown code blocks if present
-    raw = raw.strip()
-    if raw.startswith("```json"):
-        raw = raw[7:]
-    if raw.startswith("```"):
-        raw = raw[3:]
-    if raw.endswith("```"):
-        raw = raw[:-3]
-    return json.loads(raw.strip())
+    return call_ai_json(prompt)
 
 def generate_daily_tasks(topic, level, daily_hours, date) -> list:
     prompt = f"""You are a learning task generator. Generate daily tasks in JSON format.
@@ -156,16 +180,7 @@ Return ONLY a JSON array (no markdown):
   }}
 ]
 Generate 8-12 tasks based on daily hours. difficulty: easy|medium|hard. type: reading|video|practice|revision."""
-    raw = call_ai(prompt)
-    # Clean markdown code blocks if present
-    raw = raw.strip()
-    if raw.startswith("```json"):
-        raw = raw[7:]
-    if raw.startswith("```"):
-        raw = raw[3:]
-    if raw.endswith("```"):
-        raw = raw[:-3]
-    tasks = json.loads(raw.strip())
+    tasks = call_ai_json(prompt)
     return [{"completed": False, "carriedOver": False, **t} for t in tasks]
 
 def generate_test(topic, level, test_type) -> list:
@@ -181,16 +196,7 @@ Return ONLY a JSON array (no markdown):
   }}
 ]
 Generate {count} questions. For short answer, options = []. type: mcq|short."""
-    raw = call_ai(prompt)
-    # Clean markdown code blocks if present
-    raw = raw.strip()
-    if raw.startswith("```json"):
-        raw = raw[7:]
-    if raw.startswith("```"):
-        raw = raw[3:]
-    if raw.endswith("```"):
-        raw = raw[:-3]
-    return json.loads(raw.strip())
+    return call_ai_json(prompt)
 
 def generate_ai_summary(records: list) -> str:
     if not records:
