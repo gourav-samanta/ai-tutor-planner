@@ -6,11 +6,12 @@ import random
 
 # Rate limiting
 _last_call_time = 0
-_min_call_interval = 2  # seconds between calls
+_min_call_interval = 15  # seconds between calls (increased to avoid rate limits)
 
 # API key rotation
 _current_key_index = 0
 _failed_keys = set()  # Track keys that have hit quota
+_key_last_used = {}  # Track when each key was last used
 
 def get_next_api_key():
     """Get next available API key using rotation strategy"""
@@ -52,8 +53,8 @@ def get_client():
     genai.configure(api_key=api_key)
     return genai.GenerativeModel('gemini-2.5-flash'), api_key
 
-def call_ai(prompt: str, max_retries: int = 3) -> str:
-    global _last_call_time
+def call_ai(prompt: str, max_retries: int = 5) -> str:
+    global _last_call_time, _key_last_used
     
     last_error = None
     
@@ -62,24 +63,48 @@ def call_ai(prompt: str, max_retries: int = 3) -> str:
         current_time = time.time()
         time_since_last_call = current_time - _last_call_time
         if time_since_last_call < _min_call_interval:
-            time.sleep(_min_call_interval - time_since_last_call)
+            wait_time = _min_call_interval - time_since_last_call
+            time.sleep(wait_time)
         
         model, api_key = get_client()
+        
+        # Check if this specific key was used recently
+        if api_key in _key_last_used:
+            time_since_key_used = time.time() - _key_last_used[api_key]
+            if time_since_key_used < 15:  # Wait at least 15 seconds per key
+                time.sleep(15 - time_since_key_used)
+        
         try:
             response = model.generate_content(prompt)
             _last_call_time = time.time()
+            _key_last_used[api_key] = time.time()
             return response.text
         except Exception as e:
             _last_call_time = time.time()
+            _key_last_used[api_key] = time.time()
             error_msg = str(e)
             
-            # Check if it's a quota error
+            # Check if it's a quota/rate limit error
             if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
                 mark_key_as_failed(api_key)
                 last_error = e
                 
+                # Extract retry delay if available
+                if "retry in" in error_msg.lower():
+                    try:
+                        # Try to extract the wait time
+                        import re
+                        match = re.search(r'retry in (\d+\.?\d*)', error_msg.lower())
+                        if match:
+                            retry_seconds = float(match.group(1))
+                            if attempt < max_retries - 1:
+                                time.sleep(min(retry_seconds, 40))  # Cap at 40 seconds
+                    except:
+                        pass
+                
                 # If we have more retries, try next key
                 if attempt < max_retries - 1:
+                    time.sleep(3)  # Additional delay before trying next key
                     continue
             
             # For non-quota errors or last attempt, raise immediately
