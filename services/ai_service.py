@@ -39,7 +39,7 @@ def call_ollama(prompt: str, model: str = "deepseek-r1:7b") -> str:
     except Exception as e:
         raise Exception(f"Ollama call failed: {str(e)}")
 
-def call_huggingface(prompt: str, model: str = "microsoft/Phi-3-mini-4k-instruct") -> str:
+def call_huggingface(prompt: str, model: str = "HuggingFaceH4/zephyr-7b-beta") -> str:
     """Call Hugging Face Inference API as fallback"""
     if "huggingface" not in st.secrets or "api_key" not in st.secrets["huggingface"]:
         raise Exception("No Hugging Face API key configured for online fallback")
@@ -48,13 +48,17 @@ def call_huggingface(prompt: str, model: str = "microsoft/Phi-3-mini-4k-instruct
     url = f"https://api-inference.huggingface.co/models/{model}"
     headers = {"Authorization": f"Bearer {api_key}"}
     
+    # Format prompt for chat models
+    formatted_prompt = f"<|system|>\nYou are a helpful AI assistant.</s>\n<|user|>\n{prompt}</s>\n<|assistant|>\n"
+    
     payload = {
-        "inputs": prompt,
+        "inputs": formatted_prompt,
         "parameters": {
             "max_new_tokens": 2000,
             "temperature": 0.7,
             "top_p": 0.95,
-            "return_full_text": False
+            "return_full_text": False,
+            "do_sample": True
         }
     }
     
@@ -283,7 +287,7 @@ def get_api_key_status():
     else:
         return {
             "provider": "Hugging Face (Online)",
-            "model": "Phi-3-mini-4k-instruct",
+            "model": "Zephyr-7B-Beta",
             "rate_limit": "1000 requests/day",
             "status": "active",
             "note": "Install Ollama locally for unlimited requests"
