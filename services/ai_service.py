@@ -39,7 +39,7 @@ def call_ollama(prompt: str, model: str = "deepseek-r1:7b") -> str:
     except Exception as e:
         raise Exception(f"Ollama call failed: {str(e)}")
 
-def call_huggingface(prompt: str, model: str = "meta-llama/Llama-3.2-3B-Instruct") -> str:
+def call_huggingface(prompt: str, model: str = "mistralai/Mistral-7B-Instruct-v0.3") -> str:
     """Call Hugging Face Inference API as fallback"""
     if "huggingface" not in st.secrets or "api_key" not in st.secrets["huggingface"]:
         raise Exception("No Hugging Face API key configured for online fallback")
@@ -283,7 +283,7 @@ def get_api_key_status():
     else:
         return {
             "provider": "Hugging Face (Online)",
-            "model": "Llama-3.2-3B-Instruct",
+            "model": "Mistral-7B-Instruct-v0.3",
             "rate_limit": "1000 requests/day",
             "status": "active",
             "note": "Install Ollama locally for unlimited requests"
