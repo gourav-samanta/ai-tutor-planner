@@ -2,32 +2,84 @@ import json
 import streamlit as st
 import google.generativeai as genai
 import time
+import random
 
 # Rate limiting
 _last_call_time = 0
 _min_call_interval = 2  # seconds between calls
 
-def get_client():
-    genai.configure(api_key=st.secrets["gemini"]["api_key"])
-    return genai.GenerativeModel('gemini-2.5-flash')
+# API key rotation
+_current_key_index = 0
+_failed_keys = set()  # Track keys that have hit quota
 
-def call_ai(prompt: str) -> str:
+def get_next_api_key():
+    """Get next available API key using rotation strategy"""
+    global _current_key_index
+    
+    api_keys = st.secrets["gemini"]["api_keys"]
+    
+    # If all keys have failed, reset the failed set (they might work again after time)
+    if len(_failed_keys) >= len(api_keys):
+        _failed_keys.clear()
+    
+    # Try to find a key that hasn't failed
+    attempts = 0
+    while attempts < len(api_keys):
+        key = api_keys[_current_key_index]
+        _current_key_index = (_current_key_index + 1) % len(api_keys)
+        
+        if key not in _failed_keys:
+            return key
+        
+        attempts += 1
+    
+    # If all keys are marked as failed, return the next one anyway (reset scenario)
+    return api_keys[_current_key_index]
+
+def mark_key_as_failed(api_key):
+    """Mark an API key as having hit quota limit"""
+    _failed_keys.add(api_key)
+
+def get_client():
+    api_key = get_next_api_key()
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel('gemini-2.5-flash'), api_key
+
+def call_ai(prompt: str, max_retries: int = 3) -> str:
     global _last_call_time
     
-    # Rate limiting: wait if needed
-    current_time = time.time()
-    time_since_last_call = current_time - _last_call_time
-    if time_since_last_call < _min_call_interval:
-        time.sleep(_min_call_interval - time_since_last_call)
+    last_error = None
     
-    model = get_client()
-    try:
-        response = model.generate_content(prompt)
-        _last_call_time = time.time()
-        return response.text
-    except Exception as e:
-        _last_call_time = time.time()
-        raise e
+    for attempt in range(max_retries):
+        # Rate limiting: wait if needed
+        current_time = time.time()
+        time_since_last_call = current_time - _last_call_time
+        if time_since_last_call < _min_call_interval:
+            time.sleep(_min_call_interval - time_since_last_call)
+        
+        model, api_key = get_client()
+        try:
+            response = model.generate_content(prompt)
+            _last_call_time = time.time()
+            return response.text
+        except Exception as e:
+            _last_call_time = time.time()
+            error_msg = str(e)
+            
+            # Check if it's a quota error
+            if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
+                mark_key_as_failed(api_key)
+                last_error = e
+                
+                # If we have more retries, try next key
+                if attempt < max_retries - 1:
+                    continue
+            
+            # For non-quota errors or last attempt, raise immediately
+            raise e
+    
+    # If all retries failed, raise the last error
+    raise last_error
 
 def generate_roadmap(topic, purpose, duration, daily_hours, level) -> list:
     prompt = f"""You are an expert learning planner. Generate a structured learning roadmap in JSON format.
@@ -143,3 +195,22 @@ Give a short 3-sentence performance summary: strengths, weaknesses, one improvem
             return f"You're making progress with an average of {avg:.0f}%. Try to increase your daily task completion rate for better results."
         else:
             return f"Your average score is {avg:.0f}%. Focus on completing more daily tasks and reviewing the material regularly."
+
+def generate_task_learning_content(task_title: str, task_description: str, topic: str, level: str) -> str:
+    """Generate learning content for a specific task"""
+    prompt = f"""You are a helpful tutor. A student is learning {topic} at {level} level.
+They have a task: "{task_title}"
+Description: {task_description}
+
+Provide a concise, helpful explanation (200-300 words) covering:
+1. Key concepts related to this task
+2. Important points to understand
+3. A simple example or analogy
+4. Quick tips for completing this task
+
+Be clear, practical, and encouraging. Format with markdown for readability."""
+    
+    try:
+        return call_ai(prompt)
+    except Exception as e:
+        return f"⚠️ Unable to generate learning content at the moment. Error: {str(e)}\n\nPlease try again later or search online for: {task_title}"

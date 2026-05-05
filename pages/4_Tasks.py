@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 from services.session import require_auth, sidebar_nav
 from services.firebase import get_db
-from services.ai_service import generate_daily_tasks
+from services.ai_service import generate_daily_tasks, generate_task_learning_content
 
 st.set_page_config(page_title="Tasks", page_icon="✅", layout="wide")
 
@@ -125,6 +125,10 @@ if not tasks:
             st.warning("⚠️ No learning plan found. Please create a plan first using the AI Planner.")
             st.stop()
 
+# Get plan details for learning content generation
+plan_doc = db.collection("plans").document(active_plan_id).get()
+plan = plan_doc.to_dict() if plan_doc.exists else {}
+
 # Display task completion progress
 
 done = sum(1 for t in tasks if t.get("completed"))
@@ -149,6 +153,30 @@ for i, task in enumerate(tasks):
         icon = TYPE_ICON.get(task.get("type", ""), "📌")
         st.markdown(f"{icon} {title_style}{carry_badge}")
         st.caption(f"{task.get('description', '')}  ·  ⏱ {task.get('estimatedTime', '')}  ·  {diff} {task.get('difficulty', '')}")
+        
+        # Learn More button
+        if st.button(f"📚 Learn More", key=f"learn_{i}", use_container_width=False):
+            with st.spinner("🤔 Generating learning content..."):
+                try:
+                    content = generate_task_learning_content(
+                        task['title'],
+                        task.get('description', ''),
+                        plan.get('topic', 'this topic'),
+                        plan.get('level', 'beginner')
+                    )
+                    st.session_state[f"learn_content_{i}"] = content
+                except Exception as e:
+                    st.session_state[f"learn_content_{i}"] = f"⚠️ Error: {str(e)}"
+        
+        # Display learning content if available
+        if f"learn_content_{i}" in st.session_state:
+            with st.expander("📖 Learning Content", expanded=True):
+                st.markdown(st.session_state[f"learn_content_{i}"])
+                if st.button("✖️ Close", key=f"close_{i}"):
+                    del st.session_state[f"learn_content_{i}"]
+                    st.rerun()
+    
+    st.divider()
 
 if updated and ref:
     save_tasks(ref, tasks)
