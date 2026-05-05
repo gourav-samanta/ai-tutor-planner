@@ -79,7 +79,8 @@ def get_or_create_daily_test():
     
     plan = plan_doc.to_dict()
     try:
-        questions = generate_test(plan["topic"], plan["level"], "daily")
+        with st.spinner("🔄 Generating test questions (this may take 15-20 seconds)..."):
+            questions = generate_test(plan["topic"], plan["level"], "daily")
         test_data = {
             "userId": uid,
             "planId": active_plan_id,
@@ -96,10 +97,20 @@ def get_or_create_daily_test():
         return ref[1].id, test_data
     except Exception as e:
         error_msg = str(e)
-        if "quota" in error_msg.lower() or "429" in error_msg:
-            st.error("⚠️ Daily API limit reached. Tests will be available again tomorrow. You can still complete tasks and track progress!")
-        else:
-            st.error(f"Error generating test: {e}")
+        st.error(f"❌ Error generating test: {error_msg[:200]}")
+        
+        if "quota" in error_msg.lower() or "429" in error_msg or "rate" in error_msg.lower():
+            st.warning("⚠️ **API Rate Limit Reached**")
+            st.info("""
+            The free Gemini API has limits:
+            - 5 requests per minute per key
+            - We're using 5 API keys with rotation
+            - Tests require time to generate (15+ seconds between calls)
+            
+            **What to do:**
+            - Wait 1-2 minutes and try again
+            - The system will automatically rotate to available keys
+            """)
         return None, None
 
 def create_weekly_test():
@@ -110,7 +121,8 @@ def create_weekly_test():
     
     plan = plan_doc.to_dict()
     try:
-        questions = generate_test(plan["topic"], plan["level"], "weekly")
+        with st.spinner("🔄 Generating weekly test (this may take 15-20 seconds)..."):
+            questions = generate_test(plan["topic"], plan["level"], "weekly")
         test_data = {
             "userId": uid,
             "planId": active_plan_id,
@@ -127,10 +139,20 @@ def create_weekly_test():
         return ref[1].id, test_data
     except Exception as e:
         error_msg = str(e)
-        if "quota" in error_msg.lower() or "429" in error_msg:
-            st.error("⚠️ Daily API limit reached. Weekly test generation will be available again tomorrow.")
-        else:
-            st.error(f"Error generating weekly test: {e}")
+        st.error(f"❌ Error generating weekly test: {error_msg[:200]}")
+        
+        if "quota" in error_msg.lower() or "429" in error_msg or "rate" in error_msg.lower():
+            st.warning("⚠️ **API Rate Limit Reached**")
+            st.info("""
+            The free Gemini API has limits:
+            - 5 requests per minute per key
+            - We're using 5 API keys with rotation
+            - Weekly tests require time to generate (15+ seconds)
+            
+            **What to do:**
+            - Wait 1-2 minutes and try again
+            - The system will automatically rotate to available keys
+            """)
         return None, None
 
 # Check for mandatory weekly test
