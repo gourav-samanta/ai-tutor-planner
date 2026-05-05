@@ -39,7 +39,7 @@ def call_ollama(prompt: str, model: str = "deepseek-r1:7b") -> str:
     except Exception as e:
         raise Exception(f"Ollama call failed: {str(e)}")
 
-def call_huggingface(prompt: str, model: str = "meta-llama/Meta-Llama-3-8B-Instruct") -> str:
+def call_huggingface(prompt: str, model: str = "google/flan-t5-large") -> str:
     """Call Hugging Face Inference API as fallback"""
     if "huggingface" not in st.secrets or "api_key" not in st.secrets["huggingface"]:
         raise Exception("No Hugging Face API key configured for online fallback")
@@ -55,13 +55,13 @@ def call_huggingface(prompt: str, model: str = "meta-llama/Meta-Llama-3-8B-Instr
     payload = {
         "inputs": prompt,
         "parameters": {
-            "max_new_tokens": 2000,
+            "max_new_tokens": 1000,
             "temperature": 0.7,
-            "top_p": 0.95,
-            "do_sample": True
+            "top_p": 0.95
         },
         "options": {
-            "wait_for_model": True
+            "wait_for_model": True,
+            "use_cache": False
         }
     }
     
@@ -71,10 +71,9 @@ def call_huggingface(prompt: str, model: str = "meta-llama/Meta-Llama-3-8B-Instr
         result = response.json()
         if isinstance(result, list) and len(result) > 0:
             generated = result[0].get("generated_text", "")
-            # Remove the prompt from response if it's included
-            if generated.startswith(prompt):
-                generated = generated[len(prompt):].strip()
             return generated
+        elif isinstance(result, dict) and "generated_text" in result:
+            return result["generated_text"]
         return str(result)
     elif response.status_code == 503:
         raise Exception("Model is loading, please wait 30 seconds and try again")
@@ -296,8 +295,8 @@ def get_api_key_status():
     else:
         return {
             "provider": "Hugging Face (Online)",
-            "model": "Meta-Llama-3-8B-Instruct",
+            "model": "FLAN-T5-Large (Google)",
             "rate_limit": "1000 requests/day",
             "status": "active",
-            "note": "Install Ollama locally for unlimited requests"
+            "note": "Install Ollama locally for unlimited requests with better models"
         }
