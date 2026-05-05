@@ -45,7 +45,7 @@ def get_next_api_key():
     return api_keys[_current_key_index]
 
 def mark_key_as_failed(api_key):
-    """Mark an API key as having hit quota limit"""
+    """Mark an API key as failed for the current session"""
     _failed_keys.add(api_key)
 
 def get_client():
@@ -83,31 +83,26 @@ def call_ai(prompt: str, max_retries: int = 5) -> str:
             _last_call_time = time.time()
             _key_last_used[api_key] = time.time()
             error_msg = str(e)
-            
-            # Check if it's a quota/rate limit error
-            if "429" in error_msg or "quota" in error_msg.lower() or "rate" in error_msg.lower():
-                mark_key_as_failed(api_key)
-                last_error = e
-                
-                # Extract retry delay if available
-                if "retry in" in error_msg.lower():
-                    try:
-                        # Try to extract the wait time
-                        import re
-                        match = re.search(r'retry in (\d+\.?\d*)', error_msg.lower())
-                        if match:
-                            retry_seconds = float(match.group(1))
-                            if attempt < max_retries - 1:
-                                time.sleep(min(retry_seconds, 40))  # Cap at 40 seconds
-                    except:
-                        pass
-                
-                # If we have more retries, try next key
-                if attempt < max_retries - 1:
-                    time.sleep(3)  # Additional delay before trying next key
-                    continue
-            
-            # For non-quota errors or last attempt, raise immediately
+            last_error = e
+
+            # Any failed attempt should rotate to the next key.
+            mark_key_as_failed(api_key)
+
+            # Extract retry delay if available for quota/rate responses.
+            if "retry in" in error_msg.lower():
+                try:
+                    import re
+                    match = re.search(r'retry in (\d+\.?\d*)', error_msg.lower())
+                    if match and attempt < max_retries - 1:
+                        retry_seconds = float(match.group(1))
+                        time.sleep(min(retry_seconds, 40))  # Cap at 40 seconds
+                except:
+                    pass
+
+            if attempt < max_retries - 1:
+                time.sleep(3)  # Brief delay before trying the next key
+                continue
+
             raise e
     
     # If all retries failed, raise the last error
