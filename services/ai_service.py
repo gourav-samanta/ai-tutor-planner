@@ -39,48 +39,15 @@ def call_ollama(prompt: str, model: str = "deepseek-r1:7b") -> str:
     except Exception as e:
         raise Exception(f"Ollama call failed: {str(e)}")
 
-def call_huggingface(prompt: str, model: str = "google/flan-t5-large") -> str:
-    """Call Hugging Face Inference API as fallback"""
-    if "huggingface" not in st.secrets or "api_key" not in st.secrets["huggingface"]:
-        raise Exception("No Hugging Face API key configured for online fallback")
-    
-    api_key = st.secrets["huggingface"]["api_key"]
-    # Use the correct serverless inference endpoint
-    url = "https://api-inference.huggingface.co/models/" + model
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "max_new_tokens": 1000,
-            "temperature": 0.7,
-            "top_p": 0.95
-        },
-        "options": {
-            "wait_for_model": True,
-            "use_cache": False
-        }
-    }
-    
-    response = requests.post(url, headers=headers, json=payload, timeout=120)
-    
-    if response.status_code == 200:
-        result = response.json()
-        if isinstance(result, list) and len(result) > 0:
-            generated = result[0].get("generated_text", "")
-            return generated
-        elif isinstance(result, dict) and "generated_text" in result:
-            return result["generated_text"]
-        return str(result)
-    elif response.status_code == 503:
-        raise Exception("Model is loading, please wait 30 seconds and try again")
-    elif response.status_code == 403:
-        raise Exception("Access denied. This model may require accepting a license agreement on Hugging Face")
-    else:
-        raise Exception(f"Hugging Face API error {response.status_code}: {response.text}")
+def call_huggingface(prompt: str, model: str = "gpt2") -> str:
+    """Call Hugging Face Inference API as fallback - DEPRECATED"""
+    # Hugging Face free inference API is no longer reliable
+    # Recommend using Ollama locally instead
+    raise Exception(
+        "Hugging Face free API is not available. "
+        "Please run the app locally with Ollama for unlimited free AI. "
+        "Install: https://ollama.com/download then run 'ollama pull deepseek-r1:7b'"
+    )
 
 def call_ai(prompt: str, max_retries: int = 3) -> str:
     """Smart AI call - uses Ollama locally, Hugging Face online"""
@@ -294,9 +261,9 @@ def get_api_key_status():
         }
     else:
         return {
-            "provider": "Hugging Face (Online)",
-            "model": "FLAN-T5-Large (Google)",
-            "rate_limit": "1000 requests/day",
-            "status": "active",
-            "note": "Install Ollama locally for unlimited requests with better models"
+            "provider": "Ollama Required",
+            "model": "N/A - HuggingFace free API deprecated",
+            "rate_limit": "N/A",
+            "status": "offline",
+            "note": "Run locally with Ollama for unlimited free AI. Visit: https://ollama.com/download"
         }
