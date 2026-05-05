@@ -51,22 +51,25 @@ records = sorted([d.to_dict() for d in docs], key=lambda x: x["date"])
 st.subheader("Performance Graph")
 if records:
     fig = go.Figure()
+    # Convert dates to proper datetime format
+    dates = [datetime.strptime(r["date"], "%Y-%m-%d") for r in records]
+    
     fig.add_trace(go.Scatter(
-        x=[r["date"][5:] for r in records],
+        x=dates,
         y=[r.get("task_completion", 0) for r in records],
         name="Task Completion %", mode="lines+markers", fill="tozeroy",
         line=dict(color="#6366f1", width=2)
     ))
     fig.add_trace(go.Scatter(
-        x=[r["date"][5:] for r in records],
+        x=dates,
         y=[r.get("test_score") or 0 for r in records],
         name="Test Score %", mode="lines+markers", fill="tozeroy",
         line=dict(color="#8b5cf6", width=2)
     ))
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        yaxis=dict(range=[0, 100], gridcolor="#1f2937", color="#9ca3af"),
-        xaxis=dict(gridcolor="#1f2937", color="#9ca3af"),
+        yaxis=dict(range=[0, 100], gridcolor="#1f2937", color="#9ca3af", title="Score %"),
+        xaxis=dict(gridcolor="#1f2937", color="#9ca3af", title="Date"),
         legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#9ca3af")),
         margin=dict(l=0, r=0, t=10, b=0), height=300
     )

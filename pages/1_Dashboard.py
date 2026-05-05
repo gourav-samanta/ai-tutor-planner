@@ -81,17 +81,21 @@ with col_right:
     st.subheader("Weekly Performance")
     if records:
         fig = go.Figure()
+        # Convert dates to proper datetime format for x-axis
+        dates = [datetime.strptime(r["date"], "%Y-%m-%d") for r in records]
+        scores = [r.get("daily_score", 0) for r in records]
+        
         fig.add_trace(go.Scatter(
-            x=[r["date"][5:] for r in records],
-            y=[r.get("daily_score", 0) for r in records],
+            x=dates,
+            y=scores,
             mode="lines+markers", fill="tozeroy",
             line=dict(color="#6366f1", width=2),
             marker=dict(size=6)
         ))
         fig.update_layout(
             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            yaxis=dict(range=[0, 100], gridcolor="#1f2937", color="#9ca3af"),
-            xaxis=dict(gridcolor="#1f2937", color="#9ca3af"),
+            yaxis=dict(range=[0, 100], gridcolor="#1f2937", color="#9ca3af", title="Score %"),
+            xaxis=dict(gridcolor="#1f2937", color="#9ca3af", title="Date"),
             margin=dict(l=0, r=0, t=10, b=0), height=220
         )
         st.plotly_chart(fig, use_container_width=True)
