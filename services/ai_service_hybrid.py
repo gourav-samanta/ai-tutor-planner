@@ -39,7 +39,7 @@ def call_ollama(prompt: str, model: str = "deepseek-r1:7b") -> str:
     except Exception as e:
         raise Exception(f"Ollama call failed: {str(e)}")
 
-def call_huggingface(prompt: str, model: str = "mistralai/Mistral-7B-Instruct-v0.3") -> str:
+def call_huggingface(prompt: str, model: str = "microsoft/Phi-3-mini-4k-instruct") -> str:
     """Call Hugging Face Inference API as fallback"""
     if "huggingface" not in st.secrets or "api_key" not in st.secrets["huggingface"]:
         raise Exception("No Hugging Face API key configured for online fallback")
