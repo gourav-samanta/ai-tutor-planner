@@ -43,9 +43,17 @@ def get_next_api_key():
     # If all keys are marked as failed, return the next one anyway (reset scenario)
     return api_keys[_current_key_index]
 
-def mark_key_as_failed(api_key):
-    """Mark an API key as failed for the current session"""
-    _failed_keys.add(api_key)
+def get_api_key_status():
+    """Get status of all API keys for debugging"""
+    api_keys = _get_api_keys()
+    status = {
+        "total_keys": len(api_keys),
+        "failed_keys": len(_failed_keys),
+        "available_keys": len(api_keys) - len(_failed_keys),
+        "current_index": _current_key_index,
+        "keys_last_used": {k[-4:]: f"{int(time.time() - v)}s ago" for k, v in _key_last_used.items()}
+    }
+    return status
 
 def get_client():
     api_key = get_next_api_key()
@@ -87,8 +95,13 @@ def call_ai(prompt: str, max_retries: int | None = None) -> str:
             error_msg = str(e)
             last_error = e
 
-            # Any failed attempt should rotate to the next key.
-            mark_key_as_failed(api_key)
+            # Check if it's a rate limit (per minute) vs quota (per day)
+            is_rate_limit = "per minute" in error_msg.lower() or "retry in" in error_msg.lower()
+            is_quota_exceeded = "per day" in error_msg.lower() or ("quota" in error_msg.lower() and "per minute" not in error_msg.lower())
+            
+            # Only mark key as failed for daily quota, not rate limits
+            if is_quota_exceeded:
+                mark_key_as_failed(api_key)
 
             # Extract retry delay if available for quota/rate responses.
             if "retry in" in error_msg.lower():

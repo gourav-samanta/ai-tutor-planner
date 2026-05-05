@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import datetime
 from services.session import require_auth, sidebar_nav
 from services.firebase import get_db
-from services.ai_service import generate_test
+from services.ai_service import generate_test, get_api_key_status
 
 st.set_page_config(page_title="Tests", page_icon="📝", layout="wide")
 
@@ -99,6 +99,14 @@ def get_or_create_daily_test():
         error_msg = str(e)
         st.error(f"❌ Error generating test: {error_msg[:200]}")
         
+        # Show API key status for debugging
+        try:
+            status = get_api_key_status()
+            with st.expander("🔍 API Key Status (Debug Info)"):
+                st.json(status)
+        except:
+            pass
+        
         if "quota" in error_msg.lower() or "429" in error_msg or "rate" in error_msg.lower():
             st.warning("⚠️ **API Rate Limit Reached**")
             st.info("""
@@ -140,6 +148,14 @@ def create_weekly_test():
     except Exception as e:
         error_msg = str(e)
         st.error(f"❌ Error generating weekly test: {error_msg[:200]}")
+        
+        # Show API key status for debugging
+        try:
+            status = get_api_key_status()
+            with st.expander("🔍 API Key Status (Debug Info)"):
+                st.json(status)
+        except:
+            pass
         
         if "quota" in error_msg.lower() or "429" in error_msg or "rate" in error_msg.lower():
             st.warning("⚠️ **API Rate Limit Reached**")
