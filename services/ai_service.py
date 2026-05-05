@@ -39,38 +39,47 @@ def call_ollama(prompt: str, model: str = "deepseek-r1:7b") -> str:
     except Exception as e:
         raise Exception(f"Ollama call failed: {str(e)}")
 
-def call_huggingface(prompt: str, model: str = "HuggingFaceH4/zephyr-7b-beta") -> str:
+def call_huggingface(prompt: str, model: str = "meta-llama/Meta-Llama-3-8B-Instruct") -> str:
     """Call Hugging Face Inference API as fallback"""
     if "huggingface" not in st.secrets or "api_key" not in st.secrets["huggingface"]:
         raise Exception("No Hugging Face API key configured for online fallback")
     
     api_key = st.secrets["huggingface"]["api_key"]
-    url = f"https://api-inference.huggingface.co/models/{model}"
-    headers = {"Authorization": f"Bearer {api_key}"}
-    
-    # Format prompt for chat models
-    formatted_prompt = f"<|system|>\nYou are a helpful AI assistant.</s>\n<|user|>\n{prompt}</s>\n<|assistant|>\n"
+    # Use the correct serverless inference endpoint
+    url = "https://api-inference.huggingface.co/models/" + model
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
     
     payload = {
-        "inputs": formatted_prompt,
+        "inputs": prompt,
         "parameters": {
             "max_new_tokens": 2000,
             "temperature": 0.7,
             "top_p": 0.95,
-            "return_full_text": False,
             "do_sample": True
+        },
+        "options": {
+            "wait_for_model": True
         }
     }
     
-    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    response = requests.post(url, headers=headers, json=payload, timeout=120)
     
     if response.status_code == 200:
         result = response.json()
         if isinstance(result, list) and len(result) > 0:
-            return result[0].get("generated_text", "")
+            generated = result[0].get("generated_text", "")
+            # Remove the prompt from response if it's included
+            if generated.startswith(prompt):
+                generated = generated[len(prompt):].strip()
+            return generated
         return str(result)
     elif response.status_code == 503:
-        raise Exception("Model is loading on Hugging Face, please wait 20 seconds and try again")
+        raise Exception("Model is loading, please wait 30 seconds and try again")
+    elif response.status_code == 403:
+        raise Exception("Access denied. This model may require accepting a license agreement on Hugging Face")
     else:
         raise Exception(f"Hugging Face API error {response.status_code}: {response.text}")
 
@@ -287,7 +296,7 @@ def get_api_key_status():
     else:
         return {
             "provider": "Hugging Face (Online)",
-            "model": "Zephyr-7B-Beta",
+            "model": "Meta-Llama-3-8B-Instruct",
             "rate_limit": "1000 requests/day",
             "status": "active",
             "note": "Install Ollama locally for unlimited requests"
