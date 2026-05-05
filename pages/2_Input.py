@@ -126,6 +126,10 @@ if user_input:
         st.session_state.conversation_stage = "topic"
         st.session_state.plan_info = {}
     
+    # Ensure chat_history exists before appending
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = []
+    
     st.session_state.chat_history.append({"role": "assistant", "content": reply})
     with st.chat_message("assistant"):
         st.write(reply)
@@ -173,7 +177,9 @@ if st.session_state.get("conversation_stage") == "form":
                     st.success("✅ Your learning plan is ready! Check the Roadmap page.")
                     st.session_state["plan"] = plan_data
                     
-                    # Add to chat history
+                    # Add to chat history (ensure it exists)
+                    if "chat_history" not in st.session_state:
+                        st.session_state.chat_history = []
                     st.session_state.chat_history.append({"role": "assistant", "content": f"✅ Plan created successfully for **{topic}**! View it in the Roadmap section."})
                     
                     # Reset conversation
