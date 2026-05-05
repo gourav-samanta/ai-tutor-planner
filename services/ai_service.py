@@ -95,12 +95,13 @@ def call_ai(prompt: str, max_retries: int | None = None) -> str:
             error_msg = str(e)
             last_error = e
 
-            # Check if it's a rate limit (per minute) vs quota (per day)
+            # Check if it's a rate limit (per minute) vs quota (per day) vs leaked key
             is_rate_limit = "per minute" in error_msg.lower() or "retry in" in error_msg.lower()
             is_quota_exceeded = "per day" in error_msg.lower() or ("quota" in error_msg.lower() and "per minute" not in error_msg.lower())
+            is_leaked_key = "403" in error_msg or "leaked" in error_msg.lower() or "reported" in error_msg.lower()
             
-            # Only mark key as failed for daily quota, not rate limits
-            if is_quota_exceeded:
+            # Mark key as failed for leaked keys or daily quota
+            if is_quota_exceeded or is_leaked_key:
                 mark_key_as_failed(api_key)
 
             # Extract retry delay if available for quota/rate responses.
