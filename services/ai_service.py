@@ -16,7 +16,14 @@ def get_next_api_key():
     """Get next available API key using rotation strategy"""
     global _current_key_index
     
-    api_keys = st.secrets["gemini"]["api_keys"]
+    # Support both old format (single key) and new format (array of keys)
+    if "api_keys" in st.secrets["gemini"]:
+        api_keys = st.secrets["gemini"]["api_keys"]
+    elif "api_key" in st.secrets["gemini"]:
+        # Fallback to single key format
+        api_keys = [st.secrets["gemini"]["api_key"]]
+    else:
+        raise ValueError("No API keys found in secrets. Please add 'api_keys' array or 'api_key' to [gemini] section.")
     
     # If all keys have failed, reset the failed set (they might work again after time)
     if len(_failed_keys) >= len(api_keys):
