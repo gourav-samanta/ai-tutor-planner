@@ -1,142 +1,159 @@
 import json
 import streamlit as st
-import requests
+import google.generativeai as genai
 import time
 
 # Rate limiting
 _last_call_time = 0
-_min_call_interval = 1  # Faster for local Ollama
+_min_call_interval = 15  # seconds between calls (increased to avoid rate limits)
 
-def check_ollama_available():
-    """Check if Ollama is running locally"""
-    try:
-        response = requests.get("http://localhost:11434/api/tags", timeout=2)
-        return response.status_code == 200
-    except:
-        return False
+# API key rotation
+_current_key_index = 0
+_failed_keys = set()  # Track keys that have hit quota
+_key_last_used = {}  # Track when each key was last used
 
-def call_ollama(prompt: str, model: str = "deepseek-r1:7b") -> str:
-    """Call local Ollama API"""
-    url = "http://localhost:11434/api/generate"
+def _get_api_keys():
+    """Return configured Gemini API keys in normalized list form."""
+    if "api_keys" in st.secrets["gemini"]:
+        return st.secrets["gemini"]["api_keys"]
+    if "api_key" in st.secrets["gemini"]:
+        return [st.secrets["gemini"]["api_key"]]
+    raise ValueError("No API keys found in secrets. Please add 'api_keys' array or 'api_key' to [gemini] section.")
+
+def get_next_api_key():
+    """Get next available API key using rotation strategy"""
+    global _current_key_index
+    api_keys = _get_api_keys()
     
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.7,
-            "num_predict": 2000
-        }
+    # If all keys have failed, reset the failed set (they might work again after time)
+    if len(_failed_keys) >= len(api_keys):
+        _failed_keys.clear()
+    
+    # Try to find a key that hasn't failed
+    attempts = 0
+    while attempts < len(api_keys):
+        key = api_keys[_current_key_index]
+        _current_key_index = (_current_key_index + 1) % len(api_keys)
+        
+        if key not in _failed_keys:
+            return key
+        
+        attempts += 1
+    
+    # If all keys are marked as failed, return the next one anyway (reset scenario)
+    return api_keys[_current_key_index]
+
+def get_api_key_status():
+    """Get status of all API keys for debugging"""
+    api_keys = _get_api_keys()
+    status = {
+        "total_keys": len(api_keys),
+        "failed_keys": len(_failed_keys),
+        "available_keys": len(api_keys) - len(_failed_keys),
+        "current_index": _current_key_index,
+        "keys_last_used": {k[-4:]: f"{int(time.time() - v)}s ago" for k, v in _key_last_used.items()}
     }
-    
-    try:
-        response = requests.post(url, json=payload, timeout=120)
-        if response.status_code == 200:
-            result = response.json()
-            return result.get("response", "")
-        else:
-            raise Exception(f"Ollama error: {response.status_code}")
-    except Exception as e:
-        raise Exception(f"Ollama call failed: {str(e)}")
+    return status
 
-def call_huggingface(prompt: str, model: str = "gpt2") -> str:
-    """Call Hugging Face Inference API as fallback - DEPRECATED"""
-    # Hugging Face free inference API is no longer reliable
-    # Recommend using Ollama locally instead
-    raise Exception(
-        "Hugging Face free API is not available. "
-        "Please run the app locally with Ollama for unlimited free AI. "
-        "Install: https://ollama.com/download then run 'ollama pull deepseek-r1:7b'"
-    )
+def get_client():
+    api_key = get_next_api_key()
+    genai.configure(api_key=api_key)
+    return genai.GenerativeModel('gemini-2.5-flash'), api_key
 
-def call_ai(prompt: str, max_retries: int = 3) -> str:
-    """Smart AI call - uses Ollama locally, Hugging Face online"""
-    global _last_call_time
-    
-    # Check if Ollama is available (local)
-    use_ollama = check_ollama_available()
+def call_ai(prompt: str, max_retries: int | None = None) -> str:
+    global _last_call_time, _key_last_used
+    api_keys = _get_api_keys()
+    if max_retries is None:
+        max_retries = len(api_keys)
+
+    last_error = None
     
     for attempt in range(max_retries):
-        # Rate limiting
+        # Rate limiting: wait if needed
         current_time = time.time()
         time_since_last_call = current_time - _last_call_time
         if time_since_last_call < _min_call_interval:
-            time.sleep(_min_call_interval - time_since_last_call)
+            wait_time = _min_call_interval - time_since_last_call
+            time.sleep(wait_time)
+        
+        model, api_key = get_client()
+        
+        # Check if this specific key was used recently
+        if api_key in _key_last_used:
+            time_since_key_used = time.time() - _key_last_used[api_key]
+            if time_since_key_used < 15:  # Wait at least 15 seconds per key
+                time.sleep(15 - time_since_key_used)
         
         try:
-            if use_ollama:
-                result = call_ollama(prompt)
-            else:
-                result = call_huggingface(prompt)
-            
+            response = model.generate_content(prompt)
             _last_call_time = time.time()
-            return result
-            
+            _key_last_used[api_key] = time.time()
+            return response.text
         except Exception as e:
             _last_call_time = time.time()
+            _key_last_used[api_key] = time.time()
             error_msg = str(e)
+            last_error = e
+
+            # Check if it's a rate limit (per minute) vs quota (per day) vs leaked key
+            is_rate_limit = "per minute" in error_msg.lower() or "retry in" in error_msg.lower()
+            is_quota_exceeded = "per day" in error_msg.lower() or ("quota" in error_msg.lower() and "per minute" not in error_msg.lower())
+            is_leaked_key = "403" in error_msg or "leaked" in error_msg.lower() or "reported" in error_msg.lower()
             
-            # If Ollama fails, try Hugging Face as fallback
-            if use_ollama and "Ollama" in error_msg and attempt < max_retries - 1:
-                use_ollama = False
-                continue
-            
-            # If model is loading, wait and retry
-            if "loading" in error_msg.lower() and attempt < max_retries - 1:
-                time.sleep(20)
-                continue
-            
+            # Mark key as failed for leaked keys or daily quota
+            if is_quota_exceeded or is_leaked_key:
+                mark_key_as_failed(api_key)
+
+            # Extract retry delay if available for quota/rate responses.
+            if "retry in" in error_msg.lower():
+                try:
+                    import re
+                    match = re.search(r'retry in (\d+\.?\d*)', error_msg.lower())
+                    if match and attempt < max_retries - 1:
+                        retry_seconds = float(match.group(1))
+                        time.sleep(min(retry_seconds, 40))  # Cap at 40 seconds
+                except:
+                    pass
+
             if attempt < max_retries - 1:
-                time.sleep(3)
+                time.sleep(3)  # Brief delay before trying the next key
                 continue
-            
+
             raise e
     
-    raise Exception("Max retries exceeded")
+    # If all retries failed, raise the last error
+    raise last_error
 
-def call_ai_json(prompt: str, max_attempts: int = 3):
-    """Call AI and parse JSON response"""
+def call_ai_json(prompt: str, max_attempts: int | None = None):
+    """Call Gemini until we get valid JSON or all keys have been exhausted."""
+    if max_attempts is None:
+        max_attempts = len(_get_api_keys())
+
+    last_error = None
+
     for attempt in range(max_attempts):
         try:
-            raw = call_ai(prompt)
-            # Clean markdown code blocks
+            raw = call_ai(prompt, max_retries=1)
             cleaned = raw.strip()
-            
-            # Remove markdown code blocks
             if cleaned.startswith("```json"):
                 cleaned = cleaned[7:]
             if cleaned.startswith("```"):
                 cleaned = cleaned[3:]
             if cleaned.endswith("```"):
                 cleaned = cleaned[:-3]
-            
-            cleaned = cleaned.strip()
-            
-            # Find JSON in response
-            start_idx = min(
-                cleaned.find('[') if '[' in cleaned else len(cleaned),
-                cleaned.find('{') if '{' in cleaned else len(cleaned)
-            )
-            
-            if start_idx < len(cleaned):
-                if cleaned[start_idx] == '[':
-                    end_idx = cleaned.rfind(']')
-                else:
-                    end_idx = cleaned.rfind('}')
-                
-                if end_idx > start_idx:
-                    json_str = cleaned[start_idx:end_idx+1]
-                    return json.loads(json_str)
-            
-            return json.loads(cleaned)
-            
+            return json.loads(cleaned.strip())
         except Exception as e:
+            last_error = e
+
+            # If the model returned unusable output, rotate away from the current key
+            # and try again with the next one.
             if attempt < max_attempts - 1:
                 time.sleep(2)
                 continue
+
             raise e
-    
-    raise Exception("Failed to parse JSON after multiple attempts")
+
+    raise last_error
 
 def generate_roadmap(topic, purpose, duration, daily_hours, level) -> list:
     prompt = f"""You are an expert learning planner. Generate a structured learning roadmap in JSON format.
@@ -155,9 +172,7 @@ Return ONLY a JSON array (no markdown, no explanation):
     "keyConcepts": ["concept1", "concept2"],
     "expectedOutcome": "What learner will achieve"
   }}
-]
-
-Generate a roadmap with appropriate number of weeks based on duration."""
+]"""
     return call_ai_json(prompt)
 
 def generate_daily_tasks(topic, level, daily_hours, date) -> list:
@@ -178,7 +193,6 @@ Return ONLY a JSON array (no markdown):
     "type": "reading"
   }}
 ]
-
 Generate 8-12 tasks based on daily hours. difficulty: easy|medium|hard. type: reading|video|practice|revision."""
     tasks = call_ai_json(prompt)
     return [{"completed": False, "carriedOver": False, **t} for t in tasks]
@@ -195,7 +209,6 @@ Return ONLY a JSON array (no markdown):
     "answer": "correct answer"
   }}
 ]
-
 Generate {count} questions. For short answer, options = []. type: mcq|short."""
     return call_ai_json(prompt)
 
@@ -218,9 +231,11 @@ Give a short 3-sentence performance summary: strengths, weaknesses, one improvem
     
     try:
         result = call_ai(prompt)
+        # Cache the result
         st.session_state[cache_key] = result
         return result
     except Exception as e:
+        # Return a fallback message if AI fails
         if avg >= 70:
             return f"Good progress! You're maintaining an average score of {avg:.0f}%. Keep up the consistent effort."
         elif avg >= 50:
@@ -240,30 +255,9 @@ Provide a concise, helpful explanation (200-300 words) covering:
 3. A simple example or analogy
 4. Quick tips for completing this task
 
-Be clear, practical, and encouraging."""
+Be clear, practical, and encouraging. Format with markdown for readability."""
     
     try:
         return call_ai(prompt)
     except Exception as e:
-        return f"⚠️ Unable to generate learning content. Error: {str(e)}\n\nPlease try again or search online for: {task_title}"
-
-def get_api_key_status():
-    """Get status for debugging"""
-    ollama_available = check_ollama_available()
-    
-    if ollama_available:
-        return {
-            "provider": "Ollama (Local)",
-            "model": "deepseek-r1:7b",
-            "rate_limit": "Unlimited (local)",
-            "status": "active",
-            "fallback": "Hugging Face (if Ollama fails)"
-        }
-    else:
-        return {
-            "provider": "Ollama Required",
-            "model": "N/A - HuggingFace free API deprecated",
-            "rate_limit": "N/A",
-            "status": "offline",
-            "note": "Run locally with Ollama for unlimited free AI. Visit: https://ollama.com/download"
-        }
+        return f"⚠️ Unable to generate learning content at the moment. Error: {str(e)}\n\nPlease try again later or search online for: {task_title}"
