@@ -43,6 +43,11 @@ def get_next_api_key():
     # If all keys are marked as failed, return the next one anyway (reset scenario)
     return api_keys[_current_key_index]
 
+def mark_key_as_failed(api_key: str):
+    """Mark an API key as failed (quota exceeded or leaked)"""
+    global _failed_keys
+    _failed_keys.add(api_key)
+
 def get_api_key_status():
     """Get status of all API keys for debugging"""
     api_keys = _get_api_keys()
