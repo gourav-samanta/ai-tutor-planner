@@ -16,20 +16,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def auth_page():
-    # Hero section with creative design
+    # Hero section
     st.markdown("""
-        <div style='text-align: center; padding: 4rem 0 3rem 0;'>
-            <div style='font-size: 4rem; margin-bottom: 1rem;'>🎓</div>
-            <h1 style='font-size: 3rem; font-weight: 700; 
+        <div style='text-align: center; padding: 2rem 0 1.5rem 0;'>
+            <div style='font-size: 3rem; margin-bottom: 0.5rem;'>🎓</div>
+            <h1 style='font-size: 2.5rem; font-weight: 700; 
                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                        -webkit-background-clip: text;
                        -webkit-text-fill-color: transparent;
-                       margin-bottom: 0.5rem;
-                       letter-spacing: -0.02em;'>
+                       margin-bottom: 0.5rem;'>
                 AI Tutor Planner
             </h1>
-            <p style='font-size: 1.1rem; color: #94a3b8; font-weight: 400; max-width: 400px; margin: 0 auto;'>
-                Your personal AI-powered learning companion for smarter studying
+            <p style='font-size: 1rem; color: #94a3b8; max-width: 400px; margin: 0 auto;'>
+                Your personal AI-powered learning companion
             </p>
         </div>
     """, unsafe_allow_html=True)
