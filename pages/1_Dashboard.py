@@ -3,12 +3,8 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from services.session import require_auth, sidebar_nav
 from services.firebase import get_db
-from styles import apply_custom_css
 
 st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
-
-# Apply custom styling
-apply_custom_css()
 
 # Hide default Streamlit navigation
 st.markdown("""

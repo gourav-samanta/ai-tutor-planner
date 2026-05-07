@@ -1,18 +1,9 @@
 import streamlit as st
 from services.auth_service import login, signup
-from styles import apply_custom_css
 
-st.set_page_config(
-    page_title="AI Tutor Planner", 
-    page_icon="🎓", 
-    layout="wide", 
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="AI Tutor Planner", page_icon="🎓", layout="wide", initial_sidebar_state="collapsed")
 
-# Apply custom styling
-apply_custom_css()
-
-# Hide sidebar completely on auth page
+# Hide default Streamlit navigation
 st.markdown("""
 <style>
     [data-testid="stSidebarNav"] {display: none;}
