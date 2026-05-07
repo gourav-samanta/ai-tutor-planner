@@ -1,7 +1,11 @@
 import streamlit as st
 from services.auth_service import login, signup
+from styles import apply_custom_css
 
 st.set_page_config(page_title="AI Tutor Planner", page_icon="🎓", layout="wide", initial_sidebar_state="collapsed")
+
+# Apply custom styling
+apply_custom_css()
 
 # Hide default Streamlit navigation
 st.markdown("""
@@ -11,8 +15,23 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def auth_page():
-    st.title("🎓 AI Tutor Planner")
-    tab1, tab2 = st.tabs(["Login", "Sign Up"])
+    # Hero section with gradient
+    st.markdown("""
+        <div style='text-align: center; padding: 3rem 0 2rem 0;'>
+            <h1 style='font-size: 3.5rem; font-weight: 700; 
+                       background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+                       -webkit-background-clip: text;
+                       -webkit-text-fill-color: transparent;
+                       margin-bottom: 0.5rem;'>
+                🎓 AI Tutor Planner
+            </h1>
+            <p style='font-size: 1.2rem; color: #94a3b8; font-weight: 300;'>
+                Your personal AI-powered learning companion
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    tab1, tab2 = st.tabs(["🔐 Login", "✨ Sign Up"])
 
     with tab1:
         with st.form("login_form"):

@@ -3,8 +3,12 @@ from datetime import datetime, timedelta
 from services.session import require_auth, sidebar_nav
 from services.firebase import get_db
 from services.ai_service import generate_daily_tasks, generate_task_learning_content
+from styles import apply_custom_css
 
 st.set_page_config(page_title="Tasks", page_icon="✅", layout="wide")
+
+# Apply custom styling
+apply_custom_css()
 
 # Hide default Streamlit navigation
 st.markdown("""
