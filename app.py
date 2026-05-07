@@ -2,36 +2,48 @@ import streamlit as st
 from services.auth_service import login, signup
 from styles import apply_custom_css
 
-st.set_page_config(page_title="AI Tutor Planner", page_icon="🎓", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="AI Tutor Planner", 
+    page_icon="🎓", 
+    layout="wide", 
+    initial_sidebar_state="collapsed"
+)
 
 # Apply custom styling
 apply_custom_css()
 
-# Hide default Streamlit navigation
+# Hide sidebar completely on auth page
 st.markdown("""
 <style>
     [data-testid="stSidebarNav"] {display: none;}
+    section[data-testid="stSidebar"] {display: none;}
+    .main {
+        max-width: 600px;
+        margin: 0 auto;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 def auth_page():
-    # Hero section with gradient
+    # Hero section with creative design
     st.markdown("""
-        <div style='text-align: center; padding: 3rem 0 2rem 0;'>
-            <h1 style='font-size: 3.5rem; font-weight: 700; 
-                       background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        <div style='text-align: center; padding: 4rem 0 3rem 0;'>
+            <div style='font-size: 4rem; margin-bottom: 1rem;'>🎓</div>
+            <h1 style='font-size: 3rem; font-weight: 700; 
+                       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                        -webkit-background-clip: text;
                        -webkit-text-fill-color: transparent;
-                       margin-bottom: 0.5rem;'>
-                🎓 AI Tutor Planner
+                       margin-bottom: 0.5rem;
+                       letter-spacing: -0.02em;'>
+                AI Tutor Planner
             </h1>
-            <p style='font-size: 1.2rem; color: #94a3b8; font-weight: 300;'>
-                Your personal AI-powered learning companion
+            <p style='font-size: 1.1rem; color: #94a3b8; font-weight: 400; max-width: 400px; margin: 0 auto;'>
+                Your personal AI-powered learning companion for smarter studying
             </p>
         </div>
     """, unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["🔐 Login", "✨ Sign Up"])
+    tab1, tab2 = st.tabs(["🔐 Login", "✨ Create Account"])
 
     with tab1:
         with st.form("login_form"):
